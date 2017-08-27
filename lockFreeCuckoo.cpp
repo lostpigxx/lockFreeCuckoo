@@ -738,28 +738,27 @@ void lockFreeCuckoo<KeyType>::ensureCapacity(uint32_t capacity) {
 
 	delete oldTable1;
 	delete oldTable2;
-	
 }
 
 
 //single test
-int main() {
-    class lockFreeCuckoo<int> myHash(32, 32);
-	//myHash.printTable();
-	char *p = new char[6]{'h', 'e', 'l', 'l', 'o', 0};
-    for (int i = 0; i < 50; i++) {
-        myHash.Insert(p, i);
-    }
-	//myHash.printTable();
-	myHash.Delete(8);
-	myHash.printTable();
-	// cout << myHash.nextValueAtKey() << endl;
-	// myHash.moveToKey(40);
-	// cout << myHash.nextValueAtKey() << endl;
-	// cout << myHash.getSize() << endl;
-	myHash.ensureCapacity(128);
-	myHash.printTable();
-}
+// int main() {
+//     class lockFreeCuckoo<int> myHash(1024, 1024);
+// 	//myHash.printTable();
+// 	char *p = new char[6]{'h', 'e', 'l', 'l', 'o', 0};
+//     for (int i = 0; i < 500; i++) {
+//         myHash.Insert(p, i);
+//     }
+// 	//myHash.printTable();
+// 	myHash.Delete(8);
+// 	//myHash.printTable();
+// 	// cout << myHash.nextValueAtKey() << endl;
+// 	// myHash.moveToKey(40);
+// 	// cout << myHash.nextValueAtKey() << endl;
+// 	// cout << myHash.getSize() << endl;
+// 	//myHash.ensureCapacity(128);
+// 	myHash.printTable();
+// }
 
 
 
@@ -811,4 +810,23 @@ int main() {
 // 	printf("End\n");
 // 	mh.printTable();
 // 	return 1;
+// }
+
+
+// int main() {
+//     class lockFreeCuckoo<int> myHash(1024, 1024);
+// 	//myHash.printTable();
+// 	char *p = new char[6]{'h', 'e', 'l', 'l', 'o', 0};
+//     for (int i = 0; i < 500; i++) {
+//         myHash.Insert(p, i);
+//     }
+// 	//myHash.printTable();
+// 	myHash.Delete(8);
+// 	//myHash.printTable();
+// 	// cout << myHash.nextValueAtKey() << endl;
+// 	// myHash.moveToKey(40);
+// 	// cout << myHash.nextValueAtKey() << endl;
+// 	// cout << myHash.getSize() << endl;
+// 	//myHash.ensureCapacity(128);
+// 	myHash.printTable();
 // }
