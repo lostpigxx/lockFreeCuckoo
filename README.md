@@ -13,7 +13,7 @@ Modified by Liang Xiao.
 3. Insert函数存在多次delete的问题，原因是多个线程会尝试同时销毁同一个对象，但是似乎不用锁难以解决该问题，目前置之不理，可能的后果是内存泄露，即随着插入的进行，会有一部分没有被释放的内存残留
 
 
-关于测试test.cpp   
+关于测试verify.cpp   
 里面包含了顺序测试和随机写入删除测试，如果通过测试会显示类似于下面的文字
 ```
 linear insertion success!
