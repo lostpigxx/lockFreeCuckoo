@@ -1,6 +1,7 @@
 /*
  * 无锁杜鹃哈希
  */
+ 
  #include <stdio.h>
  #include <stdlib.h>
  #include <iostream>
@@ -70,8 +71,8 @@ public:
     bool moveToKey(const KeyType &searchKey);
     char* nextValueAtKey();
 
-    size_t getSize();
-    void ensureCapacity(uint32_t capacity);		
+	size_t getSize();
+    void ensureCapacity(uint32_t capacity);	// resize	
     void printTable();
 
 private:

@@ -1,3 +1,7 @@
+### 下一步计划
+1. 添加insert过程中的自动resize
+2. 使用专一的线程来监控哈希表的性能
+
 
 Original: https://github.com/vigneshjathavara/Lock-Free-Cuckoo-Hashing.git
 
