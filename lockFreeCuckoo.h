@@ -207,7 +207,7 @@ void lockFreeCuckoo<KeyType>::helpRelocate(int which, int idx, bool initiator) {
 		if(!(is_marked((void *)srcEntry)))
 			return;
 
-		int key = extract_address(srcEntry)->key;
+		KeyType key = extract_address(srcEntry)->key;
 		dstIdx = (which == FIRST ? hash2(key) : hash1(key));
 		dstEntry = atomic_load_explicit(&tbl[1-which][dstIdx], memory_order_seq_cst);
 		if(extract_address(dstEntry) == NULL) {
@@ -245,7 +245,8 @@ void lockFreeCuckoo<KeyType>::helpRelocate(int which, int idx, bool initiator) {
 template <class KeyType>
 void lockFreeCuckoo<KeyType>::deleteDup(int idx1, Entry<KeyType> *ent1, int idx2, Entry<KeyType> *ent2) {
 	Entry<KeyType> *tmp1, *tmp2;
-	int key1, key2, cnt;
+	KeyType key1, key2;
+	int cnt;
 	tmp1 = atomic_load(&table1[idx1]);
 	tmp2 = atomic_load(&table2[idx2]);
 	if((ent1 != tmp1) && (ent2 != tmp2))
@@ -394,7 +395,8 @@ bool lockFreeCuckoo<KeyType>::Relocate(int which, int index)
 {
 	int threshold = t1Size + t2Size;
 	int route[threshold]; // store cuckoo path
-	int startLevel = 0, tblNum = which, key;
+	int startLevel = 0, tblNum = which;
+	KeyType key;
 	int idx = index, preIdx = 0;
 	Entry<KeyType> *curEntry = NULL;
 	Entry<KeyType> *preEntry = NULL;
