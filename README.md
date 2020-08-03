@@ -1,6 +1,8 @@
 ### 下一步计划
 1. 添加insert过程中的自动resize
 2. 使用专一的线程来监控哈希表的性能
+3. 想到了，可以用智能指针来解决问题3
+4. 写个makefile吧，现在也太挫了
 
 
 Original: https://github.com/vigneshjathavara/Lock-Free-Cuckoo-Hashing.git
