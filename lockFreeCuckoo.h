@@ -1,25 +1,22 @@
-/*
- * 无锁杜鹃哈希
- */
- 
- #include <stdio.h>
- #include <stdlib.h>
- #include <iostream>
- #include <atomic>
- #include <thread>
- #include <memory>
+// LostPigxx 2021
+//
+// 无锁杜鹃哈希 Lock Free Cuckoo Hash
+//
 
-using namespace std;
+#include <iostream>
+#include <atomic>
+#include <thread>
+#include <memory>
+#include <cstring>
 
-/*---------------------------------------------------------------------------*/
 
-template <class KeyType> 
+
+template <class KeyType>
 class KeyComparator {
 public:
-// Compare a and b. Return a negative value if a is less than b, 0 if they
-// are equal, and a positive value if a is greater than b
-    // virtual int operator()(const KeyType &a, const KeyType &b) const = 0;
-    int operator()(const KeyType &a, const KeyType &b) const {
+	// Compare a and b. Return a negative value if a is less than b, 0 if they
+	// are equal, and a positive value if a is greater than b
+    int operator()(const KeyType& a, const KeyType& b) const {
         if (a < b)
             return -1;
         if (a == b)
@@ -39,7 +36,7 @@ public:
 
 template <class KeyType>
 Entry<KeyType>::Entry(const KeyType &k, const char* v) : key(k) {
-	value = new char[strlen(v) + 1];
+	value = new char(strlen(v) + 1);
 	strcpy(value, v);
 }
 
@@ -64,7 +61,7 @@ public:
 	lockFreeCuckoo(size_t size1, size_t size2);
 	~lockFreeCuckoo();
     char* Search(KeyType key);
-	bool Insert(const char* address, const KeyType &key);    
+	bool Insert(const char* address, const KeyType &key);
     bool Delete(const KeyType &key);
     bool Contains(const KeyType &key) const;
 
@@ -72,7 +69,7 @@ public:
     char* nextValueAtKey();
 
 	size_t getSize();
-    void ensureCapacity(uint32_t capacity);	// resize	
+    void ensureCapacity(uint32_t capacity);	// resize
     void printTable();
 
 private:
@@ -81,21 +78,14 @@ private:
     bool Relocate(int tableNum , int pos);
     void helpRelocate(int table , int idx, bool initiator);
     void deleteDup(int idx1, Entry<KeyType> *ent1,int idx2,Entry<KeyType> *ent2);
-    
+
     int hash1(const KeyType key) const;
     int hash2(const KeyType key) const;
 
 private:
-	// KeyComparator不需要大家实现，但是key的比较需要由compare_来完成
-	KeyComparator<KeyType> const compare_;						
-
+	KeyComparator<KeyType> compare_;
 };
 
-
-
-
-//-----
-// for template class, all in .h files.
 
 // a 64-bits pointer only use low 48-bits
 // we use high 16-bits to store the counter
@@ -139,8 +129,8 @@ bool checkCounter(int ctr1,int ctr2, int ctrs1, int ctrs2) {
 
 template <class KeyType>
 lockFreeCuckoo<KeyType>::lockFreeCuckoo(size_t size1, size_t size2) : t1Size(size1), t2Size(size2) {
-    table1 = new std::atomic<Entry<KeyType> *>[size1];
-    table2 = new std::atomic<Entry<KeyType> *>[size2];
+    table1 = new std::atomic<Entry<KeyType>*>[size1];
+    table2 = new std::atomic<Entry<KeyType>*>[size2];
     cursor = NULL;
     init();
 }
@@ -155,11 +145,11 @@ template <class KeyType>
 void lockFreeCuckoo<KeyType>::init() {
 	Entry<KeyType> *temp = NULL;
 	for(int i = 0; i < t1Size; i++) {
-		atomic_store(&table1[i], temp);
+		std::atomic_store(&table1[i], temp);
 	}
 
 	for(int i = 0; i < t2Size; i++) {
-		atomic_store(&table2[i], temp);
+		std::atomic_store(&table2[i], temp);
 	}
 }
 
@@ -188,33 +178,33 @@ template <class KeyType>
 void lockFreeCuckoo<KeyType>::helpRelocate(int which, int idx, bool initiator) {
 	Entry<KeyType> *srcEntry, *dstEntry, *tmpEntry;
 	int dstIdx, nCnt, cnt1, cnt2, size[2];
-	atomic<Entry<KeyType> *> *tbl[2];
+	std::atomic<Entry<KeyType> *> *tbl[2];
 	tbl[0] = table1;
 	tbl[1] = table2;
 	size[0] = t1Size;
 	size[1] = t2Size;
 	while(true) {
-		srcEntry = atomic_load_explicit(&tbl[which][idx], memory_order_seq_cst);
+		srcEntry = std::atomic_load_explicit(&tbl[which][idx], std::memory_order_seq_cst);
 		//Marks the Entry to logically swap it
 		while(initiator && !(is_marked((void *)srcEntry))) {
 			if(extract_address(srcEntry) == NULL)
 				return;
 			// mark the flag
-			tmpEntry = (Entry<KeyType> *)((unsigned long)srcEntry | 1); 
-			atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
-			srcEntry = atomic_load_explicit(&tbl[which][idx], memory_order_seq_cst);
+			tmpEntry = (Entry<KeyType> *)((unsigned long)srcEntry | 1);
+			std::atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
+			srcEntry = std::atomic_load_explicit(&tbl[which][idx], std::memory_order_seq_cst);
 		}
 		if(!(is_marked((void *)srcEntry)))
 			return;
 
 		KeyType key = extract_address(srcEntry)->key;
 		dstIdx = (which == FIRST ? hash2(key) : hash1(key));
-		dstEntry = atomic_load_explicit(&tbl[1-which][dstIdx], memory_order_seq_cst);
+		dstEntry = std::atomic_load_explicit(&tbl[1-which][dstIdx], std::memory_order_seq_cst);
 		if(extract_address(dstEntry) == NULL) {
 			cnt1 = get_cnt((void *)srcEntry);
 			cnt2 = get_cnt((void *)dstEntry);
 			nCnt = cnt1 > cnt2 ? cnt1 + 1 : cnt2 + 1;
-			if(srcEntry != atomic_load_explicit(&tbl[which][idx], memory_order_seq_cst))
+			if(srcEntry != std::atomic_load_explicit(&tbl[which][idx], std::memory_order_seq_cst))
 				continue;
 
 			Entry<KeyType> *tmpSrcEntry = srcEntry;
@@ -223,20 +213,20 @@ void lockFreeCuckoo<KeyType>::helpRelocate(int which, int idx, bool initiator) {
 			store_count(&tmpSrcEntry, nCnt);
 			tmpEntry = NULL;
 			store_count(&tmpEntry,cnt1 + 1);
-			if(atomic_compare_exchange_strong(&(tbl[1-which][dstIdx]), &dstEntry, tmpSrcEntry))
-				atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
+			if(std::atomic_compare_exchange_strong(&(tbl[1-which][dstIdx]), &dstEntry, tmpSrcEntry))
+				std::atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
 			return;
 		}
 
 		if(srcEntry == dstEntry) {
 			tmpEntry = NULL;
 			store_count(&tmpEntry, cnt1 + 1);
-			atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
+			std::atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
 			return;
 		}
 		tmpEntry = (Entry<KeyType> *)((unsigned long)srcEntry & (~1));
 		store_count(&tmpEntry, cnt1 + 1);
-		atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
+		std::atomic_compare_exchange_strong(&(tbl[which][idx]), &srcEntry, tmpEntry);
 		return;
 	}
 }
@@ -247,8 +237,8 @@ void lockFreeCuckoo<KeyType>::deleteDup(int idx1, Entry<KeyType> *ent1, int idx2
 	Entry<KeyType> *tmp1, *tmp2;
 	KeyType key1, key2;
 	int cnt;
-	tmp1 = atomic_load(&table1[idx1]);
-	tmp2 = atomic_load(&table2[idx2]);
+	tmp1 = std::atomic_load(&table1[idx1]);
+	tmp2 = std::atomic_load(&table2[idx2]);
 	if((ent1 != tmp1) && (ent2 != tmp2))
 		return;
 	key1 = extract_address(ent1)->key;
@@ -258,7 +248,7 @@ void lockFreeCuckoo<KeyType>::deleteDup(int idx1, Entry<KeyType> *ent1, int idx2
 	tmp2 = NULL;
 	cnt = get_cnt(ent2);
 	store_count(&tmp2, cnt + 1);
-	atomic_compare_exchange_strong(&(table2[idx2]), &ent2, tmp2);
+	std::atomic_compare_exchange_strong(&(table2[idx2]), &ent2, tmp2);
 }
 
 template <class KeyType>
@@ -270,25 +260,25 @@ char* lockFreeCuckoo<KeyType>::Search(KeyType key)
 	while(true) {
 		// 1st round
 		// Looking in table 1
-		Entry<KeyType> *ent1 = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		Entry<KeyType> *ent1 = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		cnt1 = get_cnt(ent1);
 		ent1 = extract_address(ent1);
 		if(ent1 != NULL && !compare_(ent1->key, key))
 			return ent1->value;
 		// Looking in table 2
-		Entry<KeyType> *ent2 = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		Entry<KeyType> *ent2 = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		cnt2 = get_cnt(ent2);
 		ent2 = extract_address(ent2);
 		if(ent2 != NULL && !compare_(ent2->key, key))
 			return ent2->value;
 
 		// 2nd round
-		ent1 = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		ent1 = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		ncnt1 = get_cnt(ent1);
 		ent1 = extract_address(ent1);
 		if(ent1 != NULL && !compare_(ent1->key, key))
 			return ent1->value;
-		ent2 = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		ent2 = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		ncnt2 = get_cnt(ent2);
 		ent2 = extract_address(ent2);
 		if(ent2 != NULL && !compare_(ent2->key, key))
@@ -296,7 +286,7 @@ char* lockFreeCuckoo<KeyType>::Search(KeyType key)
 
 		if(checkCounter(cnt1,cnt2,ncnt1,ncnt2))
 			continue;
-		else 
+		else
 			return NIL;
 	}
 }
@@ -311,7 +301,7 @@ int lockFreeCuckoo<KeyType>::Find(KeyType key, Entry<KeyType> **ent1, Entry<KeyT
 	Entry<KeyType> *e;
 	while(true) {
 		// 1st round
-		e = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		e = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		*ent1 = e;
 		cnt1 = get_cnt(e);
 		e = extract_address(e);
@@ -325,7 +315,7 @@ int lockFreeCuckoo<KeyType>::Find(KeyType key, Entry<KeyType> **ent1, Entry<KeyT
 				result = FIRST;
 		}
 
-		e = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		e = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		*ent2 = e;
 		cnt2 = get_cnt(e);
 		e = extract_address(e);
@@ -348,7 +338,7 @@ int lockFreeCuckoo<KeyType>::Find(KeyType key, Entry<KeyType> **ent1, Entry<KeyT
 			return result;
 
 		// 2nd round
-		e = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		e = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		*ent1 = e;
 		ncnt1 = get_cnt(e);
 		e = extract_address(e);
@@ -362,7 +352,7 @@ int lockFreeCuckoo<KeyType>::Find(KeyType key, Entry<KeyType> **ent1, Entry<KeyT
 				result = FIRST;
 		}
 
-		e = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		e = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		*ent2 = e;
 		ncnt2 = get_cnt(e);
 		e = extract_address(e);
@@ -385,7 +375,7 @@ int lockFreeCuckoo<KeyType>::Find(KeyType key, Entry<KeyType> **ent1, Entry<KeyT
 
 		if(checkCounter(cnt1, cnt2, ncnt1, ncnt2))
 			continue;
-		else 
+		else
 			return NIL;
 	}
 }
@@ -400,7 +390,7 @@ bool lockFreeCuckoo<KeyType>::Relocate(int which, int index)
 	int idx = index, preIdx = 0;
 	Entry<KeyType> *curEntry = NULL;
 	Entry<KeyType> *preEntry = NULL;
-	atomic<Entry<KeyType> *> *tbl[2];
+	std::atomic<Entry<KeyType> *> *tbl[2];
 	tbl[0] = table1;
 	tbl[1] = table2;
 
@@ -409,10 +399,10 @@ path_discovery:
 	bool found = false;
 	int depth = startLevel;
 	do {
-		curEntry = atomic_load(&tbl[tblNum][idx]);
+		curEntry = std::atomic_load(&tbl[tblNum][idx]);
 		while(is_marked((void *)curEntry)) {
 			helpRelocate(tblNum, idx, false);
-			curEntry = atomic_load(&tbl[tblNum][idx]);
+			curEntry = std::atomic_load(&tbl[tblNum][idx]);
 		}
 
 		Entry<KeyType> *preEntAddr, *curEntAddr;
@@ -449,10 +439,10 @@ path_discovery:
 		tblNum = 1 - tblNum;
 		for(int i = depth - 1; i >= 0; --i, tblNum = 1 - tblNum) {
 			idx = route[i];
-			srcEntry = atomic_load(&tbl[tblNum][idx]);
+			srcEntry = std::atomic_load(&tbl[tblNum][idx]);
 			if(is_marked((void *)srcEntry)) {
 				helpRelocate(tblNum, idx, false);
-				srcEntry = atomic_load(&tbl[tblNum][idx]);
+				srcEntry = std::atomic_load(&tbl[tblNum][idx]);
 			}
 
 			Entry<KeyType> *srcEntryAddr = extract_address(srcEntry);
@@ -461,7 +451,7 @@ path_discovery:
 			}
 			key = srcEntryAddr->key;
 			dstIdx = (tblNum == FIRST ? hash2(key) : hash1(key));
-			dstEntry = atomic_load(&tbl[1-tblNum][dstIdx]);
+			dstEntry = std::atomic_load(&tbl[1-tblNum][dstIdx]);
 			if(extract_address(dstEntry) != NULL) {
 				startLevel = i + 1;
 				idx = dstIdx;
@@ -478,8 +468,8 @@ template <class KeyType>
 bool lockFreeCuckoo<KeyType>::Insert(const char* address, const KeyType &key) {
 	Entry<KeyType> *newEntry = new Entry<KeyType>(key, address);
 	Entry<KeyType> *ent1 = NULL, *ent2 = NULL;
-	// shared_ptr<Entry<KeyType>> spent1(ent1); 
-	// shared_ptr<Entry<KeyType>> spent2(ent2); 
+	// shared_ptr<Entry<KeyType>> spent1(ent1);
+	// shared_ptr<Entry<KeyType>> spent2(ent2);
 	int cnt = 0;
 	int h1 = hash1(key);
 	int h2 = hash2(key);
@@ -490,7 +480,7 @@ bool lockFreeCuckoo<KeyType>::Insert(const char* address, const KeyType &key) {
 		if(result == FIRST) {
 			cnt = get_cnt(ent1);
 			store_count(&newEntry, cnt + 1);
-			bool casResult = atomic_compare_exchange_strong(&(table1[h1]), &ent1, newEntry);
+			bool casResult = std::atomic_compare_exchange_strong(&(table1[h1]), &ent1, newEntry);
 			if(casResult == true)
 				return true;
 			else
@@ -499,7 +489,7 @@ bool lockFreeCuckoo<KeyType>::Insert(const char* address, const KeyType &key) {
 		if(result == SECOND) {
 			cnt = get_cnt(ent2);
 			store_count(&newEntry, cnt + 1);
-			bool casResult = atomic_compare_exchange_strong(&(table2[h2]), &ent2, newEntry);
+			bool casResult = std::atomic_compare_exchange_strong(&(table2[h2]), &ent2, newEntry);
 			if(casResult == true)
 				return true;
 			else
@@ -510,7 +500,7 @@ bool lockFreeCuckoo<KeyType>::Insert(const char* address, const KeyType &key) {
 		if(extract_address(ent1) == NULL && extract_address(ent2) == NULL) {
 			cnt = get_cnt(ent1);
 			store_count(&newEntry, cnt + 1);
-			bool casResult = atomic_compare_exchange_strong(&(table1[h1]), &ent1, newEntry);
+			bool casResult = std::atomic_compare_exchange_strong(&(table1[h1]), &ent1, newEntry);
 			if(casResult == true)
 				return true;
 			else
@@ -520,7 +510,7 @@ bool lockFreeCuckoo<KeyType>::Insert(const char* address, const KeyType &key) {
 		if(extract_address(ent1) == NULL) {
 			cnt = get_cnt(ent1);
 			store_count(&newEntry, cnt + 1);
-			bool casResult = atomic_compare_exchange_strong(&(table1[h1]), &ent1, newEntry);
+			bool casResult = std::atomic_compare_exchange_strong(&(table1[h1]), &ent1, newEntry);
 			if(casResult == true)
 				return true;
 			else
@@ -530,7 +520,7 @@ bool lockFreeCuckoo<KeyType>::Insert(const char* address, const KeyType &key) {
 		if(extract_address(ent2) == NULL) {
 			cnt = get_cnt(ent2);
 			store_count(&newEntry, cnt + 1);
-			bool casResult = atomic_compare_exchange_strong(&(table2[h2]), &ent2, newEntry);
+			bool casResult = std::atomic_compare_exchange_strong(&(table2[h2]), &ent2, newEntry);
 			if(casResult == true)
 				return true;
 			else
@@ -562,7 +552,7 @@ bool lockFreeCuckoo<KeyType>::Delete(const KeyType &key) {
 			Entry<KeyType> *tmp = NULL;
 			cnt = get_cnt(ent1);
 			store_count(&tmp, cnt + 1);
-			bool casResult = atomic_compare_exchange_strong(&(table1[h1]), &ent1, tmp);
+			bool casResult = std::atomic_compare_exchange_strong(&(table1[h1]), &ent1, tmp);
 			if(casResult == true)
 				return true;
 			else
@@ -575,7 +565,7 @@ bool lockFreeCuckoo<KeyType>::Delete(const KeyType &key) {
 			Entry<KeyType> *tmp = NULL;
 			cnt = get_cnt(ent2);
 			store_count(&tmp, cnt + 1);
-			bool casResult = atomic_compare_exchange_strong(&(table2[h2]), &ent2, tmp);
+			bool casResult = std::atomic_compare_exchange_strong(&(table2[h2]), &ent2, tmp);
 			if(casResult == true)
 				return true;
 			else
@@ -595,24 +585,24 @@ bool lockFreeCuckoo<KeyType>::Contains(const KeyType &key) const {
 	while(true) {
 		// 1st round
 		// Looking in table 1
-		Entry<KeyType> *ent1 = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		Entry<KeyType> *ent1 = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		cnt1 = get_cnt(ent1);
 		ent1 = extract_address(ent1);
 		if(ent1 != NULL && !compare_(ent1->key, key))
 			return true;
 		// Looking in table 2
-		Entry<KeyType> *ent2 = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		Entry<KeyType> *ent2 = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		cnt2 = get_cnt(ent2);
 		ent2 = extract_address(ent2);
 		if(ent2 != NULL && !compare_(ent2->key, key))
 			return true;
 		// 2nd round
-		ent1 = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		ent1 = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		ncnt1 = get_cnt(ent1);
 		ent1 = extract_address(ent1);
 		if(ent1 != NULL && !compare_(ent1->key, key))
 			return true;
-		ent2 = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		ent2 = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		ncnt2 = get_cnt(ent2);
 		ent2 = extract_address(ent2);
 		if(ent2 != NULL && !compare_(ent2->key, key))
@@ -620,7 +610,7 @@ bool lockFreeCuckoo<KeyType>::Contains(const KeyType &key) const {
 
 		if(checkCounter(cnt1,cnt2,ncnt1,ncnt2))
 			continue;
-		else 
+		else
 			return false;
 	}
 }
@@ -635,7 +625,7 @@ void lockFreeCuckoo<KeyType>::printTable()
 	Entry<KeyType> *e, *tmp = NULL;
 	for(int i = 0; i < t1Size; i++){
 		if(table1[i] != NULL) {
-			e = atomic_load_explicit(&table1[i], memory_order_relaxed);
+			e = std::atomic_load_explicit(&table1[i], std::memory_order_relaxed);
 			tmp = extract_address(e);
 			if(tmp != NULL)
 				printf("%d\t%016lx\t%d\t%s\n", i, (long)e, tmp->key, tmp->value);
@@ -644,12 +634,12 @@ void lockFreeCuckoo<KeyType>::printTable()
 		}
 		else {
 			printf("%d\tNULL\n",i);
-		}	
+		}
 	}
 	printf("****************hash_table 2*******************\n");
 	for(int i = 0; i < t2Size; i++){
 		if(table2[i] != NULL) {
-			e = atomic_load_explicit(&table2[i], memory_order_relaxed);
+			e = std::atomic_load_explicit(&table2[i], std::memory_order_relaxed);
 			tmp = extract_address(e);
 			if(tmp != NULL)
 				printf("%d\t%016lx\t%d\t%s\n", i, (long)e, tmp->key, tmp->value);
@@ -671,7 +661,7 @@ bool lockFreeCuckoo<KeyType>::moveToKey(const KeyType &searchKey) {
 	while(true) {
 		// 1st round
 		// Looking in table 1
-		Entry<KeyType> *ent1 = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		Entry<KeyType> *ent1 = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		cnt1 = get_cnt(ent1);
 		ent1 = extract_address(ent1);
 		if(ent1 != NULL && !compare_(ent1->key, searchKey)) {
@@ -679,7 +669,7 @@ bool lockFreeCuckoo<KeyType>::moveToKey(const KeyType &searchKey) {
             return true;
         }
 		// Looking in table 2
-		Entry<KeyType> *ent2 = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		Entry<KeyType> *ent2 = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		cnt2 = get_cnt(ent2);
 		ent2 = extract_address(ent2);
 		if(ent2 != NULL && !compare_(ent2->key, searchKey)) {
@@ -688,14 +678,14 @@ bool lockFreeCuckoo<KeyType>::moveToKey(const KeyType &searchKey) {
         }
 
 		// 2nd round
-		ent1 = atomic_load_explicit(&table1[h1], memory_order_relaxed);
+		ent1 = std::atomic_load_explicit(&table1[h1], std::memory_order_relaxed);
 		ncnt1 = get_cnt(ent1);
 		ent1 = extract_address(ent1);
 		if(ent1 != NULL && !compare_(ent1->key, searchKey)) {
             this->cursor = ent1;
             return true;
         }
-		ent2 = atomic_load_explicit(&table2[h2], memory_order_relaxed);
+		ent2 = std::atomic_load_explicit(&table2[h2], std::memory_order_relaxed);
 		ncnt2 = get_cnt(ent2);
 		ent2 = extract_address(ent2);
 		if(ent2 != NULL && !compare_(ent2->key, searchKey)) {
@@ -705,7 +695,7 @@ bool lockFreeCuckoo<KeyType>::moveToKey(const KeyType &searchKey) {
 
 		if(checkCounter(cnt1,cnt2,ncnt1,ncnt2))
 			continue;
-		else 
+		else
 			return false;
 	}
 }
@@ -729,29 +719,29 @@ void lockFreeCuckoo<KeyType>::ensureCapacity(uint32_t capacity) {
 	std::atomic<Entry<KeyType> *> *oldTable2 = table2;
 	size_t old1 = t1Size;
 	size_t old2 = t2Size;
-	table1 = new std::atomic<Entry<KeyType> *>[capacity/2];
-	table2 = new std::atomic<Entry<KeyType> *>[capacity/2];
+	table1 = new std::atomic<Entry<KeyType> *>(capacity/2);
+	table2 = new std::atomic<Entry<KeyType> *>(capacity/2);
 	t1Size = capacity / 2;
 	t2Size = capacity / 2;
 	cursor = NULL;
 	Entry<KeyType> *temp = NULL;
 	for (int i = 0; i < t1Size; i++) {
-		atomic_store(&table1[i], temp);
+		std::atomic_store(&table1[i], temp);
 	}
 
 	for (int i = 0; i < t2Size; i++) {
-		atomic_store(&table2[i], temp);
+		std::atomic_store(&table2[i], temp);
 	}
 
 	// insert old value.
 	for (int i = 0; i < old1; i++) {
-		temp = extract_address(atomic_load_explicit(&oldTable1[i], memory_order_relaxed));
+		temp = extract_address(std::atomic_load_explicit(&oldTable1[i], std::memory_order_relaxed));
 		if (temp)
 			Insert(temp->value, temp->key);
-			
+
 	}
 	for (int i = 0; i < old2; i++) {
-		temp = extract_address(atomic_load_explicit(&oldTable2[i], memory_order_relaxed));
+		temp = extract_address(std::atomic_load_explicit(&oldTable2[i], std::memory_order_relaxed));
 		if (temp)
 			Insert(temp->value, temp->key);
 	}
