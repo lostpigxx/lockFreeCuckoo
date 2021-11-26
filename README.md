@@ -1,14 +1,13 @@
+## Introduction
+This is a head-file-only implement of lock-free cuckoo hash without any third part dependency.
+
 ### 下一步计划
 1. 添加insert过程中的自动resize
 2. 使用专一的线程来监控哈希表的性能
 3. 想到了，可以用智能指针来解决问题3
 4. 写个makefile吧，现在也太挫了
 
-
-
-编译参数
-> g++ -std=c++11
-
+## Current Problems
 当前问题：
 1. resize/ensureCapacity存在并发性问题，即在resize的时候如果发生了插入或者删除操作，是可能出现位置后果的。（可以尝试在resize的时候锁定整个哈希表，但目前还没做）
 2. 哈希函数key只能针对整数，不能针对字符串(可以通过重写哈希函数hash1和hash2来完成)
@@ -28,3 +27,6 @@ random deletion and verify, All check success!
 使用方法
 include你自己的哈希表的.h文件，并且修改声明表的语句，使其通过编译即可。
 目前版本比较简陋，会根据需求逐步修改，有问题请直接联系我。
+
+## 搞怪
+球球大伙，给我一个三连吧（star 大雾 orz
